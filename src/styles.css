@@ -1,0 +1,20 @@
+*{box-sizing:border-box;font-family:Inter,ui-sans-serif,system-ui,Arial}
+html,body,#app{height:100%;margin:0}
+body{background:#000;color:#fff;overflow:hidden}
+.bg{position:fixed;inset:0;background-size:cover;background-position:center;filter:blur(2px) brightness(.6);z-index:0}
+.ui{position:relative;z-index:2;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.top{position:absolute;top:20px;left:20px}
+.clock{font-size:48px;font-weight:700}
+.greet{opacity:.9}
+.center{backdrop-filter:blur(6px);background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));padding:20px;border-radius:12px}
+.searchwrap{display:flex;gap:8px}
+input#q{padding:10px 12px;border-radius:8px;border:1px solid rgba(255,255,255,0.08);background:rgba(0,0,0,0.3);color:#fff}
+button#s{padding:10px 12px;border-radius:8px;background:rgba(255,255,255,0.06);border:none;color:#fff}
+.links{margin-top:12px;display:flex;gap:10px}
+.links a{color:#dfe7ff;text-decoration:none;background:rgba(255,255,255,0.03);padding:6px 8px;border-radius:6px}
+.infoToggle{position:fixed;right:20px;bottom:20px;background:rgba(255,255,255,0.06);width:44px;height:44px;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer}
+.infoPanel{position:fixed;right:20px;bottom:80px;width:320px;max-height:50vh;padding:16px;border-radius:12px;background:rgba(0,0,0,0.6);backdrop-filter:blur(8px);overflow:auto;transform:translateY(20px);opacity:0;transition:all .25s ease}
+.infoPanel.open{transform:translateY(0);opacity:1}
+
+/* teen messy mobile tweak */
+body.small .clock{font-size:28px}
