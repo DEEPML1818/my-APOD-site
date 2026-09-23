@@ -1,4 +1,4 @@
-# Give Your Website a Pulse — NASA New Tab (messy teen edition)
+# Give Your Website a Pulse — NASA New Tab (messy teen edition) hahahaha
 
 This is a quick Vite-powered new-tab dashboard using NASA APOD as a background.
 
