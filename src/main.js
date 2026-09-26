@@ -39,6 +39,8 @@ app.innerHTML = `
         
         <div class="search-input-box">
           <input id="resultsQ" placeholder="Search the web..." autocomplete="off" />
+          <button id="clearSearchBtn" class="clear-btn" style="display:none;" title="Clear">✕</button>
+          <div class="search-divider"></div>
           <button id="resultsS" class="search-btn-icon" title="Search">
             <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
               <circle cx="11" cy="11" r="8"></circle>
@@ -48,23 +50,26 @@ app.innerHTML = `
         </div>
 
         <div class="search-header-right">
-          <a href="#" class="home-nav-btn" id="backToHomeBtn">← Home</a>
+          <a href="#" class="home-nav-btn" id="backToHomeBtn">
+            <span>←</span> Home
+          </a>
         </div>
       </div>
 
       <div class="search-tabs-row" id="searchTabs">
-        <div class="search-tab active" data-tab="all">All</div>
-        <div class="search-tab" data-tab="images">Images</div>
-        <div class="search-tab" data-tab="news">News</div>
-        <div class="search-tab" data-tab="videos">Videos</div>
+        <div class="search-tab active" data-tab="all">✦ All</div>
+        <div class="search-tab" data-tab="images">🖼 Images</div>
+        <div class="search-tab" data-tab="news">📰 News</div>
+        <div class="search-tab" data-tab="videos">🎥 Videos</div>
       </div>
     </header>
 
-    <div class="search-results-wrap">
+    <div class="search-results-wrap" id="resultsWrap">
       <main class="search-results-main" id="resultsMain">
         <div class="search-stats" id="resultsStats">About 0 results</div>
         <div id="resultsList"></div>
       </main>
+      <aside class="search-sidebar" id="resultsSidebar" style="display:none;"></aside>
     </div>
   </div>
 
@@ -78,30 +83,36 @@ app.innerHTML = `
 `
 
 // clock
-function updClock(){
+function updClock() {
   const d = new Date()
   const h = d.getHours()
   const m = d.getMinutes()
-  const am = h>=12 ? 'PM' : 'AM'
-  const hh = ((h+11)%12+1)
-  const timeStr = `${hh}:${m.toString().padStart(2,'0')} ${am}`
-  
+  const am = h >= 12 ? 'PM' : 'AM'
+  const hh = ((h + 11) % 12 + 1)
+  const timeStr = `${hh}:${m.toString().padStart(2, '0')} ${am}`
+
   const homeClock = document.getElementById('clock')
   if (homeClock) homeClock.textContent = timeStr
 
-  const g = h < 12 ? 'Good morning' : (h<18 ? 'Good afternoon' : 'Good evening')
+  const g = h < 12 ? 'Good morning' : (h < 18 ? 'Good afternoon' : 'Good evening')
   const greet = document.getElementById('greet')
   if (greet) greet.textContent = `${g}, Explorer`
 }
-setInterval(updClock,1000)
+setInterval(updClock, 1000)
 updClock()
 
 // SerpApi Key Setup
 const SERP_API_KEY = import.meta.env.VITE_SERPAPI_KEY || '' // Please set in .env
 
-// State
+// Query Cache to hold all data from single fetch
+const queryCache = {
+  query: '',
+  elapsed: '0.00',
+  data: null,
+  tabData: {} // tab -> data
+}
+
 let currentTab = 'all'
-let currentQuery = ''
 
 // View Switching
 function showHomeView() {
@@ -117,6 +128,7 @@ function showResultsView(query) {
   const resultsInput = document.getElementById('resultsQ')
   if (resultsInput) {
     resultsInput.value = query
+    document.getElementById('clearSearchBtn').style.display = query ? 'block' : 'none'
     resultsInput.focus()
   }
 }
@@ -130,12 +142,11 @@ function extractDomain(urlStr) {
   }
 }
 
-// Search execution across tabs (All, Images, News, Videos)
-async function executeSearch(query, tab = currentTab) {
+// Master search function: single call pulls organic, knowledge graph, images, news, and videos
+async function executeSearch(query, tab = 'all', forceTabFetch = false) {
   const q = query.trim()
   if (!q) return
 
-  currentQuery = q
   currentTab = tab
   showResultsView(q)
 
@@ -145,41 +156,42 @@ async function executeSearch(query, tab = currentTab) {
   })
 
   const resultsMain = document.getElementById('resultsMain')
+  const sidebar = document.getElementById('resultsSidebar')
   const stats = document.getElementById('resultsStats')
   const resultsList = document.getElementById('resultsList')
 
-  if (currentTab === 'images') {
-    resultsMain.classList.add('wide-layout')
-  } else {
-    resultsMain.classList.remove('wide-layout')
+  // If query changed, clear cache
+  if (queryCache.query !== q) {
+    queryCache.query = q
+    queryCache.data = null
+    queryCache.tabData = {}
   }
 
-  const tabLabels = { all: 'results', images: 'images', news: 'news stories', videos: 'videos' }
-  stats.innerHTML = `Searching for <em>${escapeHtml(q)}</em> ${tabLabels[currentTab] || ''}...`
-  resultsList.innerHTML = `<div class="search-loading">Searching ${tabLabels[currentTab] || 'the web'}...</div>`
+  // If we already have the data in cache and don't need a dedicated extra engine fetch
+  if (queryCache.data && !forceTabFetch) {
+    renderTab(currentTab)
+    return
+  }
+
+  stats.innerHTML = `Searching the universe for <em>${escapeHtml(q)}</em>...`
+  resultsList.innerHTML = `<div class="search-loading">Fetching results...</div>`
+  sidebar.style.display = 'none'
 
   const startTime = performance.now()
 
-  // Determine SerpApi engine / params based on active tab
-  let endpoint = `/search.json?q=${encodeURIComponent(q)}&api_key=${SERP_API_KEY}`
-  if (currentTab === 'all') {
-    endpoint += '&engine=google'
-  } else if (currentTab === 'images') {
-    endpoint += '&engine=google_images'
-  } else if (currentTab === 'news') {
-    endpoint += '&engine=google_news'
-  } else if (currentTab === 'videos') {
-    endpoint += '&engine=google_videos'
-  }
+  // Single standard call to Google engine
+  const endpoint = `/search.json?engine=google&q=${encodeURIComponent(q)}&api_key=${SERP_API_KEY}`
 
   try {
     const res = await fetch(endpoint)
     if (!res.ok) throw new Error('Network or API error')
 
     const data = await res.json()
-    const elapsed = ((performance.now() - startTime) / 1000).toFixed(2)
+    queryCache.elapsed = ((performance.now() - startTime) / 1000).toFixed(2)
+    queryCache.data = data
+    queryCache.tabData['all'] = data
 
-    renderResults(data, q, currentTab, elapsed)
+    renderTab(currentTab)
   } catch (err) {
     console.error(err)
     stats.textContent = 'Search failed'
@@ -189,26 +201,78 @@ async function executeSearch(query, tab = currentTab) {
         <p style="font-size:13px;color:#aaa;margin-top:6px;">Please verify that <code>VITE_SERPAPI_KEY</code> is configured properly in your <code>.env</code> file.</p>
       </div>
     `
+    sidebar.style.display = 'none'
   }
 }
 
-function renderResults(data, q, tab, elapsed) {
+// Render selected tab from cached master data (or dedicated engine if tab clicked)
+async function renderTab(tab) {
+  const data = queryCache.data || {}
+  const q = queryCache.query
+  const elapsed = queryCache.elapsed
   const stats = document.getElementById('resultsStats')
   const resultsList = document.getElementById('resultsList')
+  const resultsMain = document.getElementById('resultsMain')
+  const sidebar = document.getElementById('resultsSidebar')
 
   if (tab === 'all') {
+    resultsMain.classList.remove('wide-layout')
     const items = data.organic_results || []
+    const kg = data.knowledge_graph
+    const inlineImages = data.inline_images || []
+
+    // Render Knowledge Graph Sidebar if present
+    if (kg && (kg.title || kg.description)) {
+      sidebar.style.display = 'block'
+      const kgImg = kg.header_images && kg.header_images[0] ? kg.header_images[0].image : (kg.image || '')
+      sidebar.innerHTML = `
+        <div class="knowledge-panel">
+          ${kgImg ? `<img src="${kgImg}" alt="${escapeHtml(kg.title || '')}" class="knowledge-header-img" onerror="this.style.display='none'" />` : ''}
+          <div class="knowledge-body">
+            <h3 class="knowledge-title">${escapeHtml(kg.title || '')}</h3>
+            ${kg.type ? `<div class="knowledge-subtitle">${escapeHtml(kg.type)}</div>` : ''}
+            ${kg.description ? `<p class="knowledge-desc">${escapeHtml(kg.description)}</p>` : ''}
+            ${kg.source && kg.source.link ? `<a href="${kg.source.link}" target="_blank" class="result-heading-link" style="font-size:13px;">Read on ${escapeHtml(kg.source.name || 'Source')} →</a>` : ''}
+          </div>
+        </div>
+      `
+    } else {
+      sidebar.style.display = 'none'
+    }
+
     if (items.length > 0) {
       stats.textContent = `About ${items.length} results (${elapsed} seconds)`
-      resultsList.innerHTML = items.map(item => {
+
+      // Optional inline image strip at top if Google returned images
+      let inlineImgHtml = ''
+      if (inlineImages.length > 0) {
+        inlineImgHtml = `
+          <div class="inline-media-strip">
+            <div class="strip-header">
+              <span>🖼 Image Highlights</span>
+            </div>
+            <div class="strip-images-row">
+              ${inlineImages.slice(0, 6).map(img => `
+                <a href="${img.link || img.original || '#'}" target="_blank" class="strip-img-item" title="${escapeHtml(img.title || '')}">
+                  <img src="${img.thumbnail || img.original || ''}" alt="Image" loading="lazy" />
+                </a>
+              `).join('')}
+            </div>
+          </div>
+        `
+      }
+
+      resultsList.innerHTML = inlineImgHtml + items.map(item => {
         const domain = extractDomain(item.link || '')
         const displayUrl = item.displayed_link || item.link || ''
-        const initial = domain.charAt(0).toUpperCase() || '✦'
+        const faviconUrl = `https://www.google.com/s2/favicons?domain=${domain}&sz=32`
 
         return `
           <div class="search-result-item">
             <div class="result-source">
-              <div class="source-icon">${initial}</div>
+              <div class="source-icon">
+                <img src="${faviconUrl}" alt="${escapeHtml(domain)}" onerror="this.onerror=null; this.parentElement.textContent='✦';" />
+              </div>
               <div class="source-meta">
                 <span class="source-name">${escapeHtml(domain)}</span>
                 <span class="source-url">${escapeHtml(displayUrl)}</span>
@@ -223,16 +287,38 @@ function renderResults(data, q, tab, elapsed) {
       renderEmpty(q, elapsed)
     }
   } else if (tab === 'images') {
-    const items = data.images_results || []
+    sidebar.style.display = 'none'
+    resultsMain.classList.add('wide-layout')
+
+    // Check if we already have dedicated google_images or inline_images
+    let items = queryCache.tabData['images']?.images_results || data.inline_images || []
+
+    // If only had a few inline images or none, fetch dedicated image engine
+    if (!queryCache.tabData['images']) {
+      stats.innerHTML = `Fetching images for <em>${escapeHtml(q)}</em>...`
+      try {
+        const res = await fetch(`/search.json?engine=google_images&q=${encodeURIComponent(q)}&api_key=${SERP_API_KEY}`)
+        if (res.ok) {
+          const imgData = await res.json()
+          queryCache.tabData['images'] = imgData
+          items = imgData.images_results || []
+        }
+      } catch (e) {
+        console.warn('Image engine fetch fallback to inline images', e)
+      }
+    } else {
+      items = queryCache.tabData['images'].images_results || []
+    }
+
     if (items.length > 0) {
       stats.textContent = `About ${items.length} images (${elapsed} seconds)`
       resultsList.innerHTML = `
         <div class="images-grid">
           ${items.map(img => {
-            const thumbUrl = img.thumbnail || img.original || ''
-            const sourceUrl = img.link || img.original || '#'
-            const sourceDomain = extractDomain(sourceUrl)
-            return `
+        const thumbUrl = img.thumbnail || img.original || ''
+        const sourceUrl = img.link || img.original || '#'
+        const sourceDomain = extractDomain(sourceUrl)
+        return `
               <a href="${sourceUrl}" target="_blank" rel="noopener noreferrer" class="image-card" title="${escapeHtml(img.title || '')}">
                 <div class="image-thumb-wrap">
                   <img src="${thumbUrl}" alt="${escapeHtml(img.title || 'Image')}" loading="lazy" />
@@ -243,14 +329,34 @@ function renderResults(data, q, tab, elapsed) {
                 </div>
               </a>
             `
-          }).join('')}
+      }).join('')}
         </div>
       `
     } else {
       renderEmpty(q, elapsed)
     }
   } else if (tab === 'news') {
-    const items = data.news_results || []
+    sidebar.style.display = 'none'
+    resultsMain.classList.remove('wide-layout')
+
+    let items = queryCache.tabData['news']?.news_results || data.top_stories || []
+
+    if (!queryCache.tabData['news']) {
+      stats.innerHTML = `Fetching news stories for <em>${escapeHtml(q)}</em>...`
+      try {
+        const res = await fetch(`/search.json?engine=google_news&q=${encodeURIComponent(q)}&api_key=${SERP_API_KEY}`)
+        if (res.ok) {
+          const newsData = await res.json()
+          queryCache.tabData['news'] = newsData
+          items = newsData.news_results || []
+        }
+      } catch (e) {
+        console.warn('News engine fetch fallback to top_stories', e)
+      }
+    } else {
+      items = queryCache.tabData['news'].news_results || []
+    }
+
     if (items.length > 0) {
       stats.textContent = `About ${items.length} news stories (${elapsed} seconds)`
       resultsList.innerHTML = items.map(news => {
@@ -276,7 +382,27 @@ function renderResults(data, q, tab, elapsed) {
       renderEmpty(q, elapsed)
     }
   } else if (tab === 'videos') {
-    const items = data.video_results || data.videos_results || []
+    sidebar.style.display = 'none'
+    resultsMain.classList.remove('wide-layout')
+
+    let items = queryCache.tabData['videos']?.video_results || data.inline_videos || []
+
+    if (!queryCache.tabData['videos']) {
+      stats.innerHTML = `Fetching videos for <em>${escapeHtml(q)}</em>...`
+      try {
+        const res = await fetch(`/search.json?engine=google_videos&q=${encodeURIComponent(q)}&api_key=${SERP_API_KEY}`)
+        if (res.ok) {
+          const vidData = await res.json()
+          queryCache.tabData['videos'] = vidData
+          items = vidData.video_results || []
+        }
+      } catch (e) {
+        console.warn('Video engine fetch fallback to inline_videos', e)
+      }
+    } else {
+      items = queryCache.tabData['videos'].video_results || []
+    }
+
     if (items.length > 0) {
       stats.textContent = `About ${items.length} videos (${elapsed} seconds)`
       resultsList.innerHTML = items.map(video => {
@@ -335,8 +461,26 @@ document.getElementById('searchTabs').addEventListener('click', (e) => {
   if (!tabTarget) return
   const selectedTab = tabTarget.dataset.tab
   if (selectedTab && selectedTab !== currentTab) {
-    executeSearch(currentQuery || document.getElementById('resultsQ').value, selectedTab)
+    currentTab = selectedTab
+    document.querySelectorAll('.search-tab').forEach(t => {
+      t.classList.toggle('active', t.dataset.tab === currentTab)
+    })
+    renderTab(selectedTab)
   }
+})
+
+// Clear Button
+const clearBtn = document.getElementById('clearSearchBtn')
+const resultsInput = document.getElementById('resultsQ')
+
+resultsInput.addEventListener('input', () => {
+  clearBtn.style.display = resultsInput.value ? 'block' : 'none'
+})
+
+clearBtn.addEventListener('click', () => {
+  resultsInput.value = ''
+  clearBtn.style.display = 'none'
+  resultsInput.focus()
 })
 
 // Home Search Listeners
@@ -357,7 +501,7 @@ document.getElementById('resultsS').addEventListener('click', () => {
   executeSearch(q, currentTab)
 })
 
-document.getElementById('resultsQ').addEventListener('keydown', (e) => {
+resultsInput.addEventListener('keydown', (e) => {
   if (e.key === 'Enter') {
     executeSearch(e.target.value, currentTab)
   }
@@ -379,31 +523,74 @@ document.getElementById('infoToggle').addEventListener('click', () => {
   document.getElementById('infoPanel').classList.toggle('open')
 })
 
-// APOD fetch with simple cache
-async function fetchAPOD(){
-  try{
-    const cached = localStorage.getItem('apod_cache_v2')
-    if(cached){
-      const obj = JSON.parse(cached)
-      const today = new Date().toISOString().slice(0,10)
-      if(obj.date === today){
-        applyAPOD(obj)
-        return
-      }
-    }
+// APOD fetch: Loads a new random NASA astronomy picture on every refresh
+const CURATED_COSMIC_FALLBACKS = [
+  {
+    title: "The Pillars of Creation (Eagle Nebula)",
+    explanation: "Captured in exquisite detail by the James Webb Space Telescope and Hubble, towering tendrils of cosmic dust and gas incubate newborn stars light-years across.",
+    date: "1995-11-02",
+    url: heroImg
+  },
+  {
+    title: "The Carina Nebula: Cosmic Cliffs",
+    explanation: "This landscape of 'mountains' and 'valleys' speckled with glittering stars is actually the edge of a nearby, young, star-forming region NGC 3324 in the Carina Nebula.",
+    date: "2022-07-12",
+    url: "https://images-assets.nasa.gov/image/PIA25430/PIA25430~orig.jpg"
+  },
+  {
+    title: "The Ring Nebula (M57)",
+    explanation: "A dying star's glowing shroud, the Ring Nebula reveals intricate structures formed during the star's final evolutionary stages in vivid deep space color.",
+    date: "2023-08-21",
+    url: "https://images-assets.nasa.gov/image/GSFC_20171208_Archive_e000407/GSFC_20171208_Archive_e000407~orig.jpg"
+  },
+  {
+    title: "Andromeda Galaxy (M31)",
+    explanation: "The closest major spiral galaxy to our own Milky Way, spanning over 220,000 light-years and home to more than a trillion stars.",
+    date: "2020-10-15",
+    url: "https://images-assets.nasa.gov/image/PIA15416/PIA15416~orig.jpg"
+  },
+  {
+    title: "Jupiter in Infrared by Webb",
+    explanation: "Webb's NIRCam instrument shows Jupiter's giant storms, auroras at both poles, and faint glowing rings against the cosmic void.",
+    date: "2022-08-22",
+    url: "https://images-assets.nasa.gov/image/PIA25433/PIA25433~orig.jpg"
+  }
+]
 
-    const res = await fetch(`https://api.nasa.gov/planetary/apod?api_key=${API_KEY}&thumbs=true`)
+function getRandomDate() {
+  const start = new Date(1996, 0, 1).getTime()
+  const end = new Date().getTime() - (24 * 60 * 60 * 1000)
+  const randomTime = start + Math.random() * (end - start)
+  return new Date(randomTime).toISOString().slice(0, 10)
+}
+
+async function fetchAPOD() {
+  try {
+    // Try fetching a random APOD entry from NASA API
+    const randDate = getRandomDate()
+    const res = await fetch(`https://api.nasa.gov/planetary/apod?api_key=${API_KEY}&date=${randDate}&thumbs=true`)
+
+    if (!res.ok) throw new Error(`NASA API status ${res.status}`)
     const data = await res.json()
-    localStorage.setItem('apod_cache_v2', JSON.stringify(data))
+
+    // Store in historical pool for offline/rate-limited instances
+    try {
+      const pool = JSON.parse(localStorage.getItem('apod_pool') || '[]')
+      if (data.url && !pool.some(item => item.url === data.url)) {
+        pool.push(data)
+        if (pool.length > 20) pool.shift()
+        localStorage.setItem('apod_pool', JSON.stringify(pool))
+      }
+    } catch { }
+
     applyAPOD(data)
-  }catch(e){
-    console.warn('apod fail', e)
+  } catch (e) {
+    console.warn('Random APOD fetch failed, picking from curated pool', e)
     applyFallback()
   }
 }
 
-function applyAPOD(d){
-  // Prioritize web-optimized d.url (1024px) over huge multi-megabyte d.hdurl
+function applyAPOD(d) {
   let targetUrl = heroImg
   if (d.media_type === 'video' && d.thumbnail_url) {
     targetUrl = d.thumbnail_url
@@ -411,7 +598,7 @@ function applyAPOD(d){
     targetUrl = d.url || d.hdurl
   }
 
-  // Preload image so we don't display a broken/empty state while downloading
+  // Preload image so transition is smooth
   const img = new Image()
   img.referrerPolicy = 'no-referrer'
   img.onload = () => {
@@ -419,39 +606,48 @@ function applyAPOD(d){
     if (bg) bg.style.backgroundImage = `url('${targetUrl}')`
   }
   img.onerror = () => {
-    console.warn('NASA image failed to load, falling back to hdurl or local hero')
-    if (d.hdurl && targetUrl !== d.hdurl) {
-      const fallbackImg = new Image()
-      fallbackImg.referrerPolicy = 'no-referrer'
-      fallbackImg.onload = () => {
-        const bg = document.querySelector('.bg')
-        if (bg) bg.style.backgroundImage = `url('${d.hdurl}')`
-      }
-      fallbackImg.onerror = () => applyFallback()
-      fallbackImg.src = d.hdurl
-    } else {
-      applyFallback()
-    }
+    console.warn('NASA image failed to load, trying fallback')
+    applyFallback()
   }
   img.src = targetUrl
 
-  document.getElementById('apod-title').textContent = d.title || 'Untitled'
-  document.getElementById('apod-expl').textContent = d.explanation || ''
-  document.getElementById('apod-date').textContent = d.date || ''
+  const titleEl = document.getElementById('apod-title')
+  const explEl = document.getElementById('apod-expl')
+  const dateEl = document.getElementById('apod-date')
+
+  if (titleEl) titleEl.textContent = d.title || 'Astronomy Picture of the Day'
+  if (explEl) explEl.textContent = d.explanation || 'Exploring the mysteries of deep space.'
+  if (dateEl) dateEl.textContent = d.date ? `NASA APOD • ${d.date}` : ''
 }
 
-function applyFallback(){
+function applyFallback() {
+  // Pick a random image from local pool or curated fallback list
+  let pool = []
+  try {
+    pool = JSON.parse(localStorage.getItem('apod_pool') || '[]')
+  } catch { }
+
+  const combined = pool.length > 0 ? [...pool, ...CURATED_COSMIC_FALLBACKS] : CURATED_COSMIC_FALLBACKS
+  const randomChoice = combined[Math.floor(Math.random() * combined.length)]
+
   const bg = document.querySelector('.bg')
-  if (bg) bg.style.backgroundImage = `url('${heroImg}')`
-  document.getElementById('apod-title').textContent = 'Fallback Image'
-  document.getElementById('apod-expl').textContent = 'Could not fetch NASA APOD. Using local image.'
+  if (bg && randomChoice.url) bg.style.backgroundImage = `url('${randomChoice.url}')`
+
+  const titleEl = document.getElementById('apod-title')
+  const explEl = document.getElementById('apod-expl')
+  const dateEl = document.getElementById('apod-date')
+
+  if (titleEl) titleEl.textContent = randomChoice.title || 'Cosmic Wonder'
+  if (explEl) explEl.textContent = randomChoice.explanation || 'Exploring the depths of the universe.'
+  if (dateEl) dateEl.textContent = randomChoice.date ? `NASA APOD • ${randomChoice.date}` : ''
 }
 
 fetchAPOD()
 
-// tiny responsiveness messy
-window.addEventListener('resize', ()=>{
+// responsiveness tweak
+window.addEventListener('resize', () => {
   const w = window.innerWidth
-  if(w<600) document.body.classList.add('small')
+  if (w < 600) document.body.classList.add('small')
   else document.body.classList.remove('small')
 })
+
