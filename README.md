@@ -1,18 +1,32 @@
-# Give Your Website a Pulse — NASA New Tab (messy teen edition) hahahaha
+# 🌌 NASA Pro - Explorer Dashboard
 
-This is a quick Vite-powered new-tab dashboard using NASA APOD as a background.
+A dynamic new-tab dashboard built for the **"Give Your Website a Pulse"** challenge. It transforms your browser's empty new tab into a stunning, interactive window into the cosmos.
 
-Run locally:
+## ✨ Features
+* **Zero-Delay Backgrounds:** Instantly loads a cached cosmic background, while gracefully fetching the latest high-res NASA APOD image in the background.
+* **Live Search Integration:** Features a fully integrated web search (powered by SerpApi) directly in the dashboard. Tab between All, Images, News, and Videos without leaving the page.
+* **Dynamic Glassmorphism UI:** Built with custom CSS featuring smooth backdrop-filters, hover states, and a pulsing info panel that reveals the NASA image description.
+* **Custom Bookmarks Engine:** An interactive widget to add and manage your favorite links, saving them directly to your browser's `localStorage`.
+* **Live Clock & Greeter:** Keeps you grounded with a live clock and time-based greetings.
 
-```bash
-npm install
-npm run dev
-```
+## 🛠 Tech Stack
+* **Core:** Pure HTML, Vanilla JavaScript, and Custom CSS (No template builders)
+* **Build Tool:** Vite for lightning-fast bundling
+* **APIs Used:** NASA APOD API & SerpApi
 
-Features:
-- Fetches NASA APOD (uses `VITE_NASA_API_KEY` from .env)
-- Live clock, greeting
-- Search bar + quick links
-- Collapsible info panel with APOD title/explanation
+## 🚀 How to Run Locally
 
-Make it messy — intentionally unrefined code for a fast build.
+1. Clone the repository and install dependencies: `npm install`
+2. Set up API keys in `.env`:
+   `VITE_NASA_API_KEY=your_key`
+   `VITE_SERPAPI_KEY=your_key`
+3. Run: `npm run dev`
+
+## 📝 Challenge Checklist Completion
+- [x] **HTML + CSS + JS required:** Built purely with vanilla JavaScript, HTML, and raw CSS.
+- [x] **Public repository with good README:** Detailed documentation included.
+- [x] **Devlogs:** A detailed `DEVLOGS.md` is included tracking the build.
+- [x] **No AI one-click builders:** Codebase was manually architected and written.
+- [x] **Custom UI/CSS:** Hand-written Glassmorphism UI, zero CSS frameworks.
+- [x] **Real Features:** Integrates two live APIs, `localStorage` caching, and state rendering.
+- [x] **Fully deployed website:** Bundled via Vite and deployed to production.

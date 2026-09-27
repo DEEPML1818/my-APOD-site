@@ -15,9 +15,11 @@ button#s:hover{background:rgba(255,255,255,0.2);transform:translateY(-1px)}
 .links{display:flex;gap:12px;justify-content:center}
 .links a{color:#a0b0ff;text-decoration:none;background:rgba(255,255,255,0.04);padding:8px 14px;border-radius:8px;font-size:14px;font-weight:500;transition:all 0.3s;border:1px solid transparent}
 .links a:hover{background:rgba(255,255,255,0.08);color:#fff;border-color:rgba(255,255,255,0.1)}
-.infoToggle{position:fixed;right:30px;bottom:30px;background:rgba(255,255,255,0.1);width:50px;height:50px;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;font-weight:bold;backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,0.1);transition:all 0.3s;animation: pulse 2s infinite;}
+.add-bookmark-btn{background:rgba(255,255,255,0.08)!important;border:1px dashed rgba(255,255,255,0.2)!important;color:#bdc1c6!important;}
+.add-bookmark-btn:hover{background:rgba(255,255,255,0.12)!important;color:#fff!important;border-style:solid!important;}
+.infoToggle{position:fixed;right:30px;bottom:30px;background:rgba(255,255,255,0.1);width:50px;height:50px;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;font-weight:bold;backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,0.1);transition:all 0.3s;animation: pulse 2s infinite;z-index:50;}
 .infoToggle:hover{background:rgba(255,255,255,0.3);transform:scale(1.1);box-shadow: 0 0 15px rgba(255,255,255,0.4); animation: none;}
-.infoPanel{position:fixed;right:30px;bottom:100px;width:360px;max-height:60vh;padding:24px;border-radius:20px;background:rgba(10,10,15,0.75);backdrop-filter:blur(16px);border:1px solid rgba(255,255,255,0.08);overflow:auto;transform:translateY(20px) scale(0.95);opacity:0;pointer-events:none;transition:all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);box-shadow:0 10px 40px rgba(0,0,0,0.5)}
+.infoPanel{position:fixed;right:30px;bottom:100px;width:360px;max-height:60vh;padding:24px;border-radius:20px;background:rgba(10,10,15,0.75);backdrop-filter:blur(16px);border:1px solid rgba(255,255,255,0.08);overflow:auto;transform:translateY(20px) scale(0.95);opacity:0;pointer-events:none;transition:all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);box-shadow:0 10px 40px rgba(0,0,0,0.5);z-index:50;}
 .infoPanel h2 {margin-top:0;font-size:22px;margin-bottom:8px;color:#fff;text-shadow: 0 0 10px rgba(255,255,255,0.3);}
 .infoPanel p {font-size:14px;line-height:1.6;color:#ccc;margin-bottom:12px}
 .infoPanel small {color:#9ab;font-size:12px;font-weight:600;letter-spacing: 0.5px;}
@@ -36,9 +38,9 @@ body.small .clock{font-size:28px}
   inset: 0;
   display: flex;
   flex-direction: column;
-  background: rgba(10, 12, 18, 0.88);
-  backdrop-filter: blur(28px);
-  -webkit-backdrop-filter: blur(28px);
+  background: rgba(10, 12, 18, 0.4); /* Lowered opacity to see stars */
+  backdrop-filter: blur(12px); /* Lowered blur to see background */
+  -webkit-backdrop-filter: blur(12px);
   overflow-y: auto;
   z-index: 2;
   animation: fadeIn 0.25s ease;
